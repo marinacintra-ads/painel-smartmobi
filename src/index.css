@@ -1,0 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-mobi-primary: #0878E5;
+  --color-mobi-secondary: #0066CC;
+  --color-mobi-purple: #32146F;
+  --color-mobi-gray: #55565A;
+  --color-mobi-bg: #F5F6F8;
+  --color-mobi-white: #FFFFFF;
+  --font-sans: "Inter", sans-serif;
+}
+
+body {
+  background-color: var(--color-mobi-bg);
+  color: var(--color-mobi-gray);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
