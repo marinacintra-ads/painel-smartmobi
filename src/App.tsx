@@ -6,7 +6,7 @@ function App() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [activeView, setActiveView] = useState('pdv');
+  const [activeView, setActiveView] = useState('dashboard'); // Agora o sistema já abre no Dashboard!
 
   const [codigo, setCodigo] = useState('');
   const [nome, setNome] = useState('');
@@ -70,18 +70,15 @@ function App() {
     }
   };
 
-  // A MÁGICA DO ESTOQUE ACONTECE AQUI
   const handleFinalizarVenda = async () => {
     if (carrinho.length === 0) return;
     setFinalizando(true);
 
-    // 1. Agrupa os itens iguais (ex: passou 2 Coca-Colas)
     const contagemItens: Record<string, number> = {};
     carrinho.forEach(item => {
       contagemItens[item.id] = (contagemItens[item.id] || 0) + 1;
     });
 
-    // 2. Vai no banco e desconta a quantidade exata
     for (const id in contagemItens) {
       const produto = produtosLista.find(p => p.id === id);
       if (produto) {
@@ -93,7 +90,7 @@ function App() {
     alert(`Venda finalizada com sucesso!\nTotal pago: R$ ${totalVenda.toFixed(2).replace('.', ',')}`);
     setCarrinho([]);
     setTotalVenda(0);
-    carregarProdutos(); // Atualiza a tabela na mesma hora
+    carregarProdutos(); 
     setFinalizando(false);
   };
 
@@ -116,6 +113,52 @@ function App() {
 
         <main className="flex-1 p-8 overflow-y-auto">
           
+          {/* MÓDULO NOVO: DASHBOARD */}
+          {activeView === 'dashboard' && (
+            <div className="max-w-6xl mx-auto flex flex-col h-full animate-fade-in">
+              <header className="mb-8">
+                <h2 className="text-3xl font-bold text-[var(--color-mobi-purple)] tracking-tight">Visão Geral</h2>
+                <p className="mt-2 text-gray-500 font-medium">Acompanhe os indicadores do seu negócio em tempo real.</p>
+              </header>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                {/* Card 1: Valor Financeiro */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-6">
+                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Capital em Estoque</p>
+                    <h3 className="text-3xl font-bold text-[var(--color-mobi-purple)]">
+                      R$ {produtosLista.reduce((acc, item) => acc + (Number(item.preco) * Number(item.quantidade)), 0).toFixed(2).replace('.', ',')}
+                    </h3>
+                  </div>
+                </div>
+
+                {/* Card 2: Volume de Itens */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-6">
+                  <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Volume de Produtos</p>
+                    <h3 className="text-3xl font-bold text-[var(--color-mobi-purple)]">
+                      {produtosLista.reduce((acc, item) => acc + Number(item.quantidade), 0)} <span className="text-lg font-medium text-gray-400">unidades totais</span>
+                    </h3>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col items-center justify-center text-center">
+                 <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                    <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                 </div>
+                 <h4 className="text-xl font-bold text-gray-700 mb-2">Relatórios em Tempo Real</h4>
+                 <p className="text-gray-500 max-w-md">O SmartMobiPDV calcula automaticamente o seu capital imobilizado com base nos produtos cadastrados no estoque.</p>
+              </div>
+            </div>
+          )}
+
           {activeView === 'pdv' && (
             <div className="flex gap-6 h-full">
               <div className="flex-1 flex flex-col">
@@ -179,61 +222,31 @@ function App() {
             </div>
           )}
 
-          {activeView === 'dashboard' && (
-             <header><h2 className="text-2xl font-bold text-[var(--color-mobi-purple)]">Visão Geral</h2><p className="mt-2 text-gray-500">Módulos em desenvolvimento.</p></header>
-          )}
-
         </main>
       </div>
     );
   }
 
-  // TELA DE LOGIN PREMIUM RESTAURADA
   return (
     <div className="min-h-screen bg-[var(--color-mobi-bg)] flex items-center justify-center font-sans p-4">
       <div className="bg-white p-8 rounded-2xl shadow-sm w-full max-w-md border border-gray-100">
-        
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-[var(--color-mobi-purple)] mb-2 tracking-tight">
-            SmartMobi<span className="font-light">Pdv</span>
-          </h1>
+          <h1 className="text-4xl font-bold text-[var(--color-mobi-purple)] mb-2 tracking-tight">SmartMobi<span className="font-light">Pdv</span></h1>
           <p className="text-[var(--color-mobi-gray)] text-sm">Seu mercado inteligente começa aqui.</p>
         </div>
-
         <form className="space-y-5" onSubmit={handleLogin}>
           <div>
             <label className="block text-sm font-medium text-[var(--color-mobi-gray)] mb-1.5">E-mail do Administrador</label>
-            <input 
-              type="email" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--color-mobi-primary)] focus:ring-1 focus:ring-[var(--color-mobi-primary)] transition-colors text-[var(--color-mobi-gray)]"
-              placeholder="admin@smartmobipdv.com.br"
-              required
-            />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--color-mobi-primary)]" placeholder="admin@smartmobipdv.com.br" required />
           </div>
-          
           <div>
             <label className="block text-sm font-medium text-[var(--color-mobi-gray)] mb-1.5">Senha</label>
-            <input 
-              type="password" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--color-mobi-primary)] focus:ring-1 focus:ring-[var(--color-mobi-primary)] transition-colors text-[var(--color-mobi-gray)]"
-              placeholder="••••••••"
-              required
-            />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:border-[var(--color-mobi-primary)]" placeholder="••••••••" required />
           </div>
-
-          <button 
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[var(--color-mobi-primary)] hover:bg-[var(--color-mobi-secondary)] text-white font-medium py-3 rounded-lg transition-colors mt-4 shadow-sm disabled:opacity-50"
-          >
+          <button type="submit" disabled={loading} className="w-full bg-[var(--color-mobi-primary)] hover:bg-[var(--color-mobi-secondary)] text-white font-medium py-3 rounded-lg mt-4 shadow-sm">
             {loading ? 'Validando...' : 'Acessar Painel'}
           </button>
         </form>
-
       </div>
     </div>
   );
