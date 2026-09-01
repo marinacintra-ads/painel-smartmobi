@@ -6,7 +6,8 @@ function App() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [activeView, setActiveView] = useState('dashboard'); // Agora o sistema já abre no Dashboard!
+  const [userId, setUserId] = useState<string | null>(null); // NOVO: Guarda o ID do usuário para a venda
+  const [activeView, setActiveView] = useState('dashboard');
 
   const [codigo, setCodigo] = useState('');
   const [nome, setNome] = useState('');
@@ -23,14 +24,19 @@ function App() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) alert('Erro ao acessar: ' + error.message);
-    else setIsLoggedIn(true);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      alert('Erro ao acessar: ' + error.message);
+    } else {
+      setIsLoggedIn(true);
+      setUserId(data.user.id); // Guardamos quem logou para enviar pro motor de vendas
+    }
     setLoading(false);
   };
 
   const carregarProdutos = async () => {
-    const { data } = await supabase.from('produtos').select('*').order('created_at', { ascending: false });
+    // ATUALIZADO: Usando o nome correto da coluna de data (criado_em)
+    const { data } = await supabase.from('produtos').select('*').order('criado_em', { ascending: false });
     if (data) setProdutosLista(data);
   };
 
@@ -41,8 +47,14 @@ function App() {
   const handleCadastrarProduto = async (e: React.FormEvent) => {
     e.preventDefault();
     setSalvando(true);
+    // ATUALIZADO: Enviando a quantidade para a coluna "estoque_atual"
     const { error } = await supabase.from('produtos').insert([
-      { codigo_barras: codigo, nome, preco: parseFloat(preco.replace(',', '.')), quantidade: parseInt(quantidade) }
+      { 
+        codigo_barras: codigo, 
+        nome, 
+        preco: parseFloat(preco.replace(',', '.')), 
+        estoque_atual: parseInt(quantidade) 
+      }
     ]);
     if (error) {
       alert('Erro ao salvar: ' + error.message);
@@ -61,7 +73,8 @@ function App() {
 
     if (error || !data) {
       alert('⚠️ Produto não encontrado no estoque!');
-    } else if (data.quantidade <= 0) {
+    // ATUALIZADO: Verificando "estoque_atual"
+    } else if (data.estoque_atual <= 0) {
       alert('⚠️ Atenção: Produto sem estoque no banco de dados!');
     } else {
       setCarrinho([...carrinho, data]);
@@ -71,26 +84,34 @@ function App() {
   };
 
   const handleFinalizarVenda = async () => {
-    if (carrinho.length === 0) return;
+    if (carrinho.length === 0 || !userId) return;
     setFinalizando(true);
 
+    // 1. Agrupamos os itens para o formato que o Motor de Vendas (RPC) espera
     const contagemItens: Record<string, number> = {};
     carrinho.forEach(item => {
       contagemItens[item.id] = (contagemItens[item.id] || 0) + 1;
     });
 
-    for (const id in contagemItens) {
-      const produto = produtosLista.find(p => p.id === id);
-      if (produto) {
-        const novaQuantidade = produto.quantidade - contagemItens[id];
-        await supabase.from('produtos').update({ quantidade: novaQuantidade }).eq('id', id);
-      }
-    }
+    const itensParaVenda = Object.keys(contagemItens).map(id => ({
+      produto_id: id,
+      quantidade: contagemItens[id]
+    }));
 
-    alert(`Venda finalizada com sucesso!\nTotal pago: R$ ${totalVenda.toFixed(2).replace('.', ',')}`);
-    setCarrinho([]);
-    setTotalVenda(0);
-    carregarProdutos(); 
+    // 2. Chamamos a Função Atômica Segura no Servidor
+    const { data, error } = await supabase.rpc('finalizar_venda', {
+      p_usuario_id: userId,
+      p_itens: itensParaVenda
+    });
+
+    if (error) {
+      alert('Erro crítico ao finalizar venda: ' + error.message);
+    } else {
+      alert(`Venda finalizada com sucesso!\nCódigo: ${data.codigo_venda}\nTotal: R$ ${data.valor_total.toFixed(2).replace('.', ',')}`);
+      setCarrinho([]);
+      setTotalVenda(0);
+      carregarProdutos(); // Recarrega o estoque atualizado
+    }
     setFinalizando(false);
   };
 
@@ -113,7 +134,6 @@ function App() {
 
         <main className="flex-1 p-8 overflow-y-auto">
           
-          {/* MÓDULO NOVO: DASHBOARD */}
           {activeView === 'dashboard' && (
             <div className="max-w-6xl mx-auto flex flex-col h-full animate-fade-in">
               <header className="mb-8">
@@ -122,7 +142,6 @@ function App() {
               </header>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                {/* Card 1: Valor Financeiro */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-6">
                   <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-green-600">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -130,12 +149,11 @@ function App() {
                   <div>
                     <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Capital em Estoque</p>
                     <h3 className="text-3xl font-bold text-[var(--color-mobi-purple)]">
-                      R$ {produtosLista.reduce((acc, item) => acc + (Number(item.preco) * Number(item.quantidade)), 0).toFixed(2).replace('.', ',')}
+                      R$ {produtosLista.reduce((acc, item) => acc + (Number(item.preco) * Number(item.estoque_atual)), 0).toFixed(2).replace('.', ',')}
                     </h3>
                   </div>
                 </div>
 
-                {/* Card 2: Volume de Itens */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-6">
                   <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
@@ -143,7 +161,7 @@ function App() {
                   <div>
                     <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Volume de Produtos</p>
                     <h3 className="text-3xl font-bold text-[var(--color-mobi-purple)]">
-                      {produtosLista.reduce((acc, item) => acc + Number(item.quantidade), 0)} <span className="text-lg font-medium text-gray-400">unidades totais</span>
+                      {produtosLista.reduce((acc, item) => acc + Number(item.estoque_atual), 0)} <span className="text-lg font-medium text-gray-400">unidades totais</span>
                     </h3>
                   </div>
                 </div>
@@ -214,7 +232,7 @@ function App() {
                   <thead><tr className="bg-[var(--color-mobi-bg)] text-[var(--color-mobi-gray)] text-sm border-b border-gray-100"><th className="p-4 font-medium">Código</th><th className="p-4 font-medium">Produto</th><th className="p-4 font-medium">Preço</th><th className="p-4 font-medium text-center">Qtd. Estoque</th></tr></thead>
                   <tbody>
                     {produtosLista.map((prod) => (
-                      <tr key={prod.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors"><td className="p-4 text-sm text-gray-500">{prod.codigo_barras}</td><td className="p-4 font-medium text-[var(--color-mobi-purple)]">{prod.nome}</td><td className="p-4 text-sm font-medium text-[var(--color-mobi-primary)]">R$ {Number(prod.preco).toFixed(2).replace('.', ',')}</td><td className="p-4 text-sm text-center font-bold bg-gray-50/50">{prod.quantidade}</td></tr>
+                      <tr key={prod.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors"><td className="p-4 text-sm text-gray-500">{prod.codigo_barras}</td><td className="p-4 font-medium text-[var(--color-mobi-purple)]">{prod.nome}</td><td className="p-4 text-sm font-medium text-[var(--color-mobi-primary)]">R$ {Number(prod.preco).toFixed(2).replace('.', ',')}</td><td className="p-4 text-sm text-center font-bold bg-gray-50/50">{prod.estoque_atual}</td></tr>
                     ))}
                   </tbody>
                 </table>
