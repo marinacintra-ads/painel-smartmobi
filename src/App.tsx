@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
+import { SeletorLoja } from './components/SeletorLoja'; // <-- NOSSA NOVA IMPORTAÇÃO AQUI
 
 function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null); // NOVO: Guarda o ID do usuário para a venda
+  const [userId, setUserId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState('dashboard');
 
   const [codigo, setCodigo] = useState('');
@@ -29,13 +30,12 @@ function App() {
       alert('Erro ao acessar: ' + error.message);
     } else {
       setIsLoggedIn(true);
-      setUserId(data.user.id); // Guardamos quem logou para enviar pro motor de vendas
+      setUserId(data.user.id);
     }
     setLoading(false);
   };
 
   const carregarProdutos = async () => {
-    // ATUALIZADO: Usando o nome correto da coluna de data (criado_em)
     const { data } = await supabase.from('produtos').select('*').order('criado_em', { ascending: false });
     if (data) setProdutosLista(data);
   };
@@ -47,7 +47,6 @@ function App() {
   const handleCadastrarProduto = async (e: React.FormEvent) => {
     e.preventDefault();
     setSalvando(true);
-    // ATUALIZADO: Enviando a quantidade para a coluna "estoque_atual"
     const { error } = await supabase.from('produtos').insert([
       { 
         codigo_barras: codigo, 
@@ -73,7 +72,6 @@ function App() {
 
     if (error || !data) {
       alert('⚠️ Produto não encontrado no estoque!');
-    // ATUALIZADO: Verificando "estoque_atual"
     } else if (data.estoque_atual <= 0) {
       alert('⚠️ Atenção: Produto sem estoque no banco de dados!');
     } else {
@@ -87,7 +85,6 @@ function App() {
     if (carrinho.length === 0 || !userId) return;
     setFinalizando(true);
 
-    // 1. Agrupamos os itens para o formato que o Motor de Vendas (RPC) espera
     const contagemItens: Record<string, number> = {};
     carrinho.forEach(item => {
       contagemItens[item.id] = (contagemItens[item.id] || 0) + 1;
@@ -98,7 +95,6 @@ function App() {
       quantidade: contagemItens[id]
     }));
 
-    // 2. Chamamos a Função Atômica Segura no Servidor
     const { data, error } = await supabase.rpc('finalizar_venda', {
       p_usuario_id: userId,
       p_itens: itensParaVenda
@@ -110,7 +106,7 @@ function App() {
       alert(`Venda finalizada com sucesso!\nCódigo: ${data.codigo_venda}\nTotal: R$ ${data.valor_total.toFixed(2).replace('.', ',')}`);
       setCarrinho([]);
       setTotalVenda(0);
-      carregarProdutos(); // Recarrega o estoque atualizado
+      carregarProdutos();
     }
     setFinalizando(false);
   };
@@ -134,6 +130,9 @@ function App() {
 
         <main className="flex-1 p-8 overflow-y-auto">
           
+          {/* NOSSO SELETOR DE LOJAS GLOBAL ESTÁ AQUI */}
+          {activeView !== 'pdv' && <SeletorLoja />}
+
           {activeView === 'dashboard' && (
             <div className="max-w-6xl mx-auto flex flex-col h-full animate-fade-in">
               <header className="mb-8">
